@@ -1,0 +1,36 @@
+# experiment name
+note: demo
+
+#project basic
+task: relation  # hmr relation
+
+#model basic
+gpu_index: 0
+lr: 0.0001
+batchsize: 1
+epoch: 2000
+worker: 0
+use_sch: True
+
+#********dataset*********#
+# The path for datasets and annotations
+data_folder: demo_data
+
+
+model: relation_joint
+
+mode: test # train/test/eval
+
+
+# Use pretrain model and the corresponding path
+pretrain: True
+pretrain_dir: data/relation_joint.pkl
+
+# The name of your training loss function
+# Split different names with a single space
+# e.g., KL_Loss MPJPE L1 L2
+train_loss: Joint_Loss # SMPL_Loss Keyp_Loss Mesh_Loss Joint_Loss Shape_reg Pose_reg
+test_loss: PCK #MPJPE #MPJPE PCK
+
+#visualize
+viz: False
