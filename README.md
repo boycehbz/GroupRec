@@ -1,4 +1,4 @@
-# GroupRec-dev
+# GroupRec
 # \[ICCV2023\] Reconstructing Groups of People with Hypergraph Relational Reasoning (GroupRec)
 
 The official code for ICCV 2023 paper "Reconstructing Groups of People with Hypergraph Relational Reasoning"<br>
