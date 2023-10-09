@@ -28,9 +28,11 @@ python demo.py --config cfg_files/demo.yaml
 ```
 
 ## Pseudo Dataset
-We also provide pseudo annotations for Panda dataset.
+We provide pseudo annotations for Panda dataset (Detection and MOT). You may also need to download image files from their official websites.
 
-\[[Baidu Netdisk](https://pan.baidu.com/s/1b8_aXe2RCJQbNLA1zQ_r8w?pwd=vy3j)\]
+\[[Annotations](https://pan.baidu.com/s/1b8_aXe2RCJQbNLA1zQ_r8w?pwd=vy3j)\]
+\[[Detection Image](https://www.gigavision.cn/track/track?nav=Detection&type=nav&t=1696068967354)\]
+\[[MOT Image](https://www.gigavision.cn/track/track?nav=Tracking&type=nav&t=1696069113370)\]
 
 ## TODOS:
 
