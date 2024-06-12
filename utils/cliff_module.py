@@ -96,7 +96,7 @@ def crop(img, center, scale, res):
     old_x = max(0, ul[0]), min(len(img[0]), br[0])
     old_y = max(0, ul[1]), min(len(img), br[1])
     try:
-        new_img[new_y[0]:new_y[1], new_x[0]:new_x[1]] = img[old_y[0]:old_y[1], old_x[0]:old_x[1]]
+        new_img[new_y[0]:new_y[1], new_x[0]:new_x[1]] = img[old_y[0]:old_y[1], old_x[0]:old_x[1]].copy()
     except Exception as e:
         print(e)
 
@@ -139,8 +139,6 @@ def prepare_cliff(img, boxes, intris=None):
     load_data = {}
     
     # Load image
-    img = img.copy().astype(np.float32)
-
     img_h, img_w, _ = img.shape
 
     num_people = len(boxes)
@@ -166,7 +164,7 @@ def prepare_cliff(img, boxes, intris=None):
 
         bbox = boxes[i]
 
-        norm_img, center, scale, crop_ul, crop_br, _ = process_image(img.copy(), bbox)
+        norm_img, center, scale, crop_ul, crop_br, _ = process_image(img, bbox)
 
         # Get 2D keypoints and apply augmentation transforms
         h = 200 * scale
