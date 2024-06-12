@@ -4,8 +4,11 @@ from torch import nn
 from torch.nn import functional as F
 from utils.imutils import cam_crop2full, vis_img
 from model.relation_head import relation_head
-from collections import namedtuple
-from utils.geometry import perspective_projection, rot6d_to_rotmat
+from model.backbones.hrnet.cls_hrnet import HighResolutionNet
+from model.backbones.hrnet.hrnet_config import cfg
+from model.backbones.hrnet.hrnet_config import update_config
+from utils.geometry import perspective_projection
+from utils.rotation_conversions import *
 from utils.rotation_conversions import matrix_to_axis_angle
 from model.backbones.resnet import ResNet
 import cv2
@@ -14,15 +17,20 @@ class relation(relation_head):
     def __init__(self, smpl, num_joints=21):
         super(relation, self).__init__(smpl, num_joints=21)
 
-        self.backbone = ResNet(layers=[3, 4, 6, 3])
-        self.backbone.avgpool = nn.AvgPool2d((7, 7), stride=1)
+        type = 'hrnet'
+        if type == 'res50':
+            self.backbone = ResNet(layers=[3, 4, 6, 3])
+        else:
+            config_file = "model/backbones/hrnet/models/cls_hrnet_w48_sgd_lr5e-2_wd1e-4_bs32_x100.yaml"
+            update_config(cfg, config_file)
+            self.backbone = HighResolutionNet(cfg)
 
     def forward(self, data):
         batch_size, agent_num = data['img'].shape[:2]
         valid = data['valid'].reshape(-1,)
         
         features = torch.zeros((batch_size*agent_num, 2048), device=data['img'].device, dtype=data['img'].dtype)
-        valid_imgs = data['img'].reshape(batch_size * agent_num, 3, 224, 224)[valid == 1]
+        valid_imgs = data['img'].reshape(batch_size * agent_num, 3, 256, 192)[valid == 1]
 
         features[valid == 1] = self.backbone(valid_imgs)
 
@@ -66,7 +74,7 @@ class relation(relation_head):
         pred_shape = self.shape_head(xc).view(num_valid, 10)
         pred_cam = self.cam_head(xc).view(num_valid, 3)
 
-        pred_rotmat = rot6d_to_rotmat(pred_pose).view(num_valid, 24, 3, 3)
+        pred_rotmat = rotation_6d_to_matrix(pred_pose).view(num_valid, 24, 3, 3)
         pred_pose =  matrix_to_axis_angle(pred_rotmat.view(-1, 3, 3)).view(num_valid, 72)
 
         # convert the camera parameters from the crop camera to the full camera

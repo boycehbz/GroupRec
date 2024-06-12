@@ -10,7 +10,7 @@ The official code for ICCV 2023 paper "Reconstructing Groups of People with Hype
 ## Installation 
 Create conda environment and install dependencies.
 ```
-conda create -n crowdrec python=3.8
+conda create -n grouprec python=3.8
 pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu111 # install pytorch
 pip install -r requirements.txt
 ```
@@ -20,11 +20,17 @@ Download the official SMPL model from [SMPLify website](http://smplify.is.tuebin
 
 
 **Step2:**<br>
-Download trained models from [Baidu Netdisk](https://pan.baidu.com/s/1B6uqTpTPMQ0kJW73W5koBA?pwd=5owh) and put them in ```data```.<br>
+Download trained models from [Baidu Netdisk](https://pan.baidu.com/s/14BD-i_wUBV_wEh3l1yo0IQ?pwd=tucv) and put them in ```data```.<br>
 
 **Step3:**<br>
+Run demo for 3D pose estimation.
 ```bash
 python demo.py --config cfg_files/demo.yaml
+```
+
+Run demo for SMPL estimation.
+```bash
+python demo.py --config cfg_files/demo_smpl.yaml
 ```
 
 ## Pseudo Dataset
@@ -37,7 +43,7 @@ We provide pseudo annotations for Panda dataset (Detection and MOT). You may als
 ## TODOS:
 
 - [x] Demo code for pose estimation
-- [ ] Demo code for SMPL estimation
+- [x] Demo code for SMPL estimation
 - [ ] Training code release
 
 

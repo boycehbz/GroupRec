@@ -5,8 +5,8 @@ from torch.nn import functional as F
 from utils.imutils import cam_crop2full, vis_img
 from .HumanGroupNet import MS_HGNN_oridinary,MS_HGNN_hyper
 from collections import namedtuple
-from utils.geometry import perspective_projection, rot6d_to_rotmat
-from utils.rotation_conversions import matrix_to_axis_angle
+from utils.geometry import perspective_projection
+from utils.rotation_conversions import *
 import cv2
 
 args = namedtuple('args', [
@@ -265,7 +265,7 @@ class relation_head(nn.Module):
         pred_shape = self.shape_head(xc).view(num_valid, 10)
         pred_cam = self.cam_head(xc).view(num_valid, 3)
 
-        pred_rotmat = rot6d_to_rotmat(pred_pose).view(num_valid, 24, 3, 3)
+        pred_rotmat = rotation_6d_to_matrix(pred_pose).view(num_valid, 24, 3, 3)
         pred_pose =  matrix_to_axis_angle(pred_rotmat.view(-1, 3, 3)).view(num_valid, 72)
 
         # convert the camera parameters from the crop camera to the full camera

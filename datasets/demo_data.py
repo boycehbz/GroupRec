@@ -24,6 +24,7 @@ class DemoData(base):
 
         self.max_people = 8
         self.eval = True
+        self.use_gt_intri = True
 
         self.imnames = [os.path.join(self.dataset_dir, img) for img in os.listdir(self.dataset_dir)]
         self.annot = []
@@ -36,10 +37,20 @@ class DemoData(base):
         predictor = Predictor(model_dir, thres)
 
         for img in self.imnames:
-            # GT intri for JTA
-            self.intris.append(np.array([[1158.,0.,960.],[0.,1158.,540.],[0.,0.,1.]]))
             results, result_img = predictor.predict(img, viz=False)
             self.annot.append(results)
+            if self.use_gt_intri:
+                # GT intri for JTA
+                self.intris.append(np.array([[1158.,0.,960.],[0.,1158.,540.],[0.,0.,1.]], dtype=np.float32))
+            else:
+                h, w = result_img.shape[:2]
+                intri = np.eye(3, dtype=np.float32)
+                focal = (h**2 + w**2)**0.5
+                intri[0][0] = focal
+                intri[1][1] = focal
+                intri[0][2] = w / 2.
+                intri[1][2] = h / 2.
+                self.intris.append(intri)
 
     def rgb_processing(self, rgb_img, center, scale, rot, flip, pn):
         """Process rgb image and do augmentation."""
@@ -101,7 +112,7 @@ class DemoData(base):
                 valid[batch_idx][i] = 1.
 
                 if intris is not None:
-                    focal_length = intris[0][0]
+                    focal_length = float(intris[0][0])
                 else:
                     focal_length = (img_h ** 2 + img_w ** 2) ** 0.5
 

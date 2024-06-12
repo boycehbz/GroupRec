@@ -9,9 +9,9 @@ import torch
 from cmd_parser import parse_config
 from modules import init, ModelLoader, DatasetLoader
 
-###########Load config file in debug mode#########
-import sys
-sys.argv = ['','--config=cfg_files/demo.yaml']
+# ###########Load config file in debug mode#########
+# import sys
+# sys.argv = ['','--config=cfg_files/demo_smpl.yaml']
 
 def main(**args):
 

@@ -6,11 +6,14 @@ from collections import namedtuple
 from utils.geometry import perspective_projection, rot6d_to_rotmat
 from utils.rotation_conversions import matrix_to_axis_angle
 from model.relation import relation
-
+from model.backbones.resnet import ResNet
 
 class relation_joint(relation):
     def __init__(self, smpl, num_joints=21):
         super(relation_joint, self).__init__(smpl, num_joints=21)
+
+        self.backbone = ResNet(layers=[3, 4, 6, 3])
+        self.backbone.avgpool = nn.AvgPool2d((7, 7), stride=1)
 
         embed_dim = 2048
         out_dim = 14 * 3

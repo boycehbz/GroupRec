@@ -10,6 +10,7 @@ import torch
 import time
 import yaml
 from datasets.demo_data import DemoData
+from datasets.demo_data_smpl import DemoData_SMPL
 from utils.imutils import vis_img
 from utils.logger import Logger
 from loss_func import *
@@ -547,31 +548,31 @@ class ModelLoader():
         if not os.path.exists(output):
             os.makedirs(output)
 
-        results['pred_verts'] = results['pred_verts'] + results['pred_trans'][:,np.newaxis,:]
+        pred_verts = results['pred_verts'] + results['pred_trans'][:,np.newaxis,:]
+        focal = results['focal_length'][0]
 
-        for index, (img, pred_verts, focal, input) in enumerate(zip(results['imgs'], results['pred_verts'], results['focal_length'], results['origin_input'])):
-            # print(img)
-            img = cv2.imread(img)
-            img_h, img_w = img.shape[:2]
-            renderer = Renderer(focal_length=focal, center=(img_w/2, img_h/2), img_w=img.shape[1], img_h=img.shape[0],
-                                faces=self.model_smpl_gpu.faces,
-                                same_mesh_color=True)
+        name = results['imgs'].replace(self.data_folder + '\\', '').replace(self.data_folder + '/', '').replace('\\', '_').replace('/', '_')
+        img = cv2.imread(results['imgs'])
+        img_h, img_w = img.shape[:2]
 
-            pred_smpl = renderer.render_front_view(pred_verts[np.newaxis,:,:],
-                                                    bg_img_rgb=img.copy())
+        renderer = Renderer(focal_length=focal, center=(img_w/2, img_h/2), img_w=img.shape[1], img_h=img.shape[0],
+                            faces=self.model_smpl_gpu.faces,
+                            same_mesh_color=True)
 
-            for kp in input:
-                pred_smpl = cv2.circle(pred_smpl, tuple(kp[:2].astype(np.int)), 5, (0,0,255), -1)
+        pred_smpl = renderer.render_front_view(pred_verts, bg_img_rgb=img.copy())
 
-            render_name = "%05d_pred_smpl.jpg" % (iter * batchsize + index)
-            cv2.imwrite(os.path.join(output, render_name), pred_smpl)
+        render_name = "%s" %name
+        cv2.imwrite(os.path.join(output, render_name), pred_smpl)
 
-            mesh_name = os.path.join(output, 'meshes/%05d_pred_mesh.obj' %(iter * batchsize + index))
-            self.model_smpl_gpu.write_obj(pred_verts, mesh_name)
+        vis_img('pred_smpl', pred_smpl)
 
-            renderer.delete()
-            # vis_img('pred_smpl', pred_smpl)
-            # vis_img('gt_smpl', gt_smpl)
+        for i, verts in enumerate(pred_verts):
+            mesh_name = os.path.join(output, 'meshes/%s/%05d.obj' %(name.split('.')[0], i))
+            self.model_smpl_gpu.write_obj(verts, mesh_name)
+
+        renderer.delete()
+        # vis_img('pred_smpl', pred_smpl)
+        # vis_img('gt_smpl', gt_smpl)
 
 class DatasetLoader():
     def __init__(self, trainset=None, testset=None, data_folder='./data', dtype=torch.float32, smpl=None, task=None, model='hmr', **kwargs):
@@ -584,6 +585,9 @@ class DatasetLoader():
         self.model = model
 
     def load_demo_data(self):
-        test_dataset = DemoData(False, self.dtype, self.data_folder, '', self.smpl)
+        if self.model in ['relation']:
+            test_dataset = DemoData_SMPL(False, self.dtype, self.data_folder, '', self.smpl)
+        else:
+            test_dataset = DemoData(False, self.dtype, self.data_folder, '', self.smpl)
 
         return test_dataset
