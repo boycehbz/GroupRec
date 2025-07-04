@@ -14,12 +14,12 @@ use_sch: True
 
 #********dataset*********#
 # The path for datasets and annotations
-data_folder: data
+data_folder: data/datasets
 
 # Human36M_MOSH MPII_CLIFF COCO CrowdPose Panda JTA AGORA JTA_fitting
-trainset: Human36M_MOSH
+trainset: Human36M_MOSH MPII_CLIFF COCO CrowdPose Panda
 # 3DMPB MuPoTS Panoptic JTA AGORA GigaCrowd_train Internet_imgs
-testset: Human36M_MOSH
+testset: Panoptic
 
 # cliff hmr cliff_hmr pose_transformer_v8  relation relation_v8
 model: relation_head
@@ -38,7 +38,7 @@ pretrain_dir: output/relation_head_panoptic/04.27-22h36m06s/trained model/best_r
 # Split different names with a single space
 # e.g., KL_Loss MPJPE L1 L2
 train_loss: SMPL_Loss Keyp_Loss Mesh_Loss Joint_Loss Plane_Loss  # SMPL_Loss Keyp_Loss Mesh_Loss Joint_Loss Joint_reg_Loss Skeleton_Loss Plane_Loss
-test_loss: PA_MPJPE #MPJPE #MPJPE PCK PA_MPJPE MPJPE_H36M
+test_loss: MPJPE_H36M_instance #MPJPE #MPJPE PCK PA_MPJPE MPJPE_H36M MPJPE_H36M_instance
 
 #visualize
 viz: False

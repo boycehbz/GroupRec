@@ -3,7 +3,7 @@
 
 The official code for ICCV 2023 paper "Reconstructing Groups of People with Hypergraph Relational Reasoning"<br>
 [Buzhen Huang](http://www.buzhenhuang.com/), [Jingyi Ju](https://me-ditto.github.io/), [Zhihao Li](https://scholar.google.com/citations?user=4cuefJ0AAAAJ&hl=zh-CN&oi=ao), [Yangang Wang](https://www.yangangwang.com/)<br>
-\[[Project](https://www.yangangwang.com/papers/iccv2023-grouprec/HUANG-GROUPREC-2023-07.html)\] \[[Paper](https://arxiv.org/abs/2308.15844)\]
+\[[Project](https://www.yangangwang.com/papers/iccv2023-grouprec/HUANG-GROUPREC-2023-07.html)\] \[[Paper](https://arxiv.org/abs/2308.15844)\] \[[Video](https://www.bilibili.com/video/BV1Up4y1j7PY/?spm_id_from=888.80997.embed_other.whitelist&t=3.205652&bvid=BV1Up4y1j7PY&vd_source=8737daf9cd6bef1969ee7438f3bd08c7)\]
 
 ![figure](/assets/pipeline.jpg)
 
@@ -33,6 +33,15 @@ Run demo for SMPL estimation.
 python demo.py --config cfg_files/demo_smpl.yaml
 ```
 
+## Train
+You can download the training data from [Baidu Netdisk](https://pan.baidu.com/s/1stGS_zFsAFgnr0QmKw6wGA?pwd=uthy) and place it in the ```data``` directory. Due to licensing restrictions, we cannot provide the Human3.6M dataset. However, you may process it into the same format as our provided data.
+```bash
+python main.py --config cfg_files/config.yaml
+```
+
+
+
+
 ## Pseudo Dataset
 We provide pseudo annotations for Panda dataset (Detection and MOT). You may also need to download image files from their official websites.
 
@@ -44,7 +53,7 @@ We provide pseudo annotations for Panda dataset (Detection and MOT). You may als
 
 - [x] Demo code for pose estimation
 - [x] Demo code for SMPL estimation
-- [ ] Training code release
+- [x] Training code release
 
 
 ## Citation
