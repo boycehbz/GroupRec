@@ -5,9 +5,11 @@
  @Email       : buzhenhuang@outlook.com
  @Description : 
 '''
+import os
 import torch
 from cmd_parser import parse_config
 from modules import init, ModelLoader, DatasetLoader
+os.environ['PYOPENGL_PLATFORM'] = 'egl'
 
 # ###########Load config file in debug mode#########
 # import sys

@@ -23,6 +23,23 @@ class L1(nn.Module):
         diff = diff / b
         return diff
 
+class Keyp2d_L1(nn.Module):
+    def __init__(self, device):
+        super(Keyp2d_L1, self).__init__()
+        self.device = device
+        self.L1Loss = nn.L1Loss(size_average=False)
+
+    def forward(self, x, y):
+        b = x.shape[0]
+        conf = y[...,2]
+
+        pred_kp = x[conf==1]
+        gt_kp = y[...,:2][conf==1]
+
+        diff = self.L1Loss(pred_kp, gt_kp)
+        diff = diff / b
+        return diff
+
 class SMPL_Loss(nn.Module):
     def __init__(self, device):
         super(SMPL_Loss, self).__init__()
@@ -162,6 +179,34 @@ class Joint_Loss(nn.Module):
         loss_dict['joint_loss'] = joint_loss * self.joint_weight
         return loss_dict
 
+class Joint_abs_Loss(nn.Module):
+    def __init__(self, device):
+        super(Joint_abs_Loss, self).__init__()
+        self.device = device
+        self.criterion_vert = nn.L1Loss().to(self.device)
+        self.criterion_joint = nn.MSELoss(reduction='none').to(self.device)
+        self.joint_weight = 0.5
+        self.verts_weight = 5.0
+        self.halpe2lsp = [16,14,12,11,13,15,10,8,6,5,7,9,18,17]
+
+    def forward(self, pred_joints, gt_joints, has_3d):
+        loss_dict = {}
+        
+        pred_joints = pred_joints[:,self.halpe2lsp]
+        gt_joints = gt_joints[:,self.halpe2lsp]
+
+        conf = gt_joints[:, :, -1].unsqueeze(-1).clone()[has_3d == 1]
+
+        gt_joints = gt_joints[has_3d == 1]
+        pred_joints = pred_joints[has_3d == 1]
+
+        if len(gt_joints) > 0:
+            joint_loss = (conf * self.criterion_joint(pred_joints, gt_joints[:, :, :-1])).mean()
+        else:
+            joint_loss = torch.FloatTensor(1).fill_(0.).to(self.device)[0]
+
+        loss_dict['joint_abs_loss'] = joint_loss * self.joint_weight
+        return loss_dict
 
 class Plane_Loss(nn.Module):
     def __init__(self, device):
@@ -257,6 +302,47 @@ class Shape_reg(nn.Module):
         loss_dict['shape_reg_loss'] = loss * self.reg_weight
         return loss_dict
 
+def load_vposer():
+    import torch
+    from  model.VPoser import VPoser
+
+    # settings of Vposer++
+    num_neurons = 512
+    latentD = 32
+    data_shape = [1,23,3]
+    trained_model_fname = 'data/vposer_snapshot.pkl' #'data/TR00_E096.pt'
+    
+    vposer_pt = VPoser(num_neurons=num_neurons, latentD=latentD, data_shape=data_shape)
+
+    model_dict = vposer_pt.state_dict()
+    premodel_dict = torch.load(trained_model_fname)
+    premodel_dict = {k: v for k ,v in premodel_dict.items() if k in model_dict}
+    model_dict.update(premodel_dict)
+    vposer_pt.load_state_dict(model_dict)
+    print("load pretrain parameters from %s" %trained_model_fname)
+
+    vposer_pt.eval()
+
+    return vposer_pt
+
+class Pose_reg(nn.Module):
+    def __init__(self, device):
+        super(Pose_reg, self).__init__()
+        self.device = device
+        self.prior = load_vposer()
+        self.prior.to(self.device)
+
+        self.reg_weight = 0.001
+
+    def forward(self, pred_pose):
+        loss_dict = {}
+
+        z_mean = self.prior.encode_mean(pred_pose[:,3:])
+        loss = torch.norm(z_mean, dim=1)
+        loss = loss.mean()
+
+        loss_dict['pose_reg_loss'] = loss * self.reg_weight
+        return loss_dict
 
 class L2(nn.Module):
     def __init__(self, device):
@@ -270,7 +356,17 @@ class L2(nn.Module):
         diff = diff / b
         return diff
 
+class Smooth6D(nn.Module):
+    def __init__(self, device):
+        super(Smooth6D, self).__init__()
+        self.device = device
+        self.L1Loss = nn.L1Loss(size_average=False)
 
+    def forward(self, x, y):
+        b, f = x.shape[:2]
+        diff = self.L1Loss(x, y)
+        diff = diff / b / f
+        return diff
 
 class MPJPE(nn.Module):
     def __init__(self, device):
@@ -412,6 +508,22 @@ class MPJPE(nn.Module):
 
         return joints - pelvis[:,None,:].repeat(1, 14, 1)
 
+class MPJPE_2D(nn.Module):
+    def __init__(self, device):
+        super(MPJPE_2D, self).__init__()
+        self.device = device
+
+    def forward(self, x, y):
+        b, f, j, d = x.shape
+        pred_joints = x.reshape(-1, j, 2)
+        gt_joints = y.reshape(-1, j, 3)
+
+        diff = torch.sqrt(torch.sum((pred_joints - gt_joints[...,:2])**2, dim=[2]) * gt_joints[:,:,2])
+        diff = torch.mean(diff, dim=[1])
+        diff = torch.mean(diff)
+        
+        return diff
+
 class MPJPE_H36M(nn.Module):
     def __init__(self, device):
         super(MPJPE_H36M, self).__init__()
@@ -425,19 +537,23 @@ class MPJPE_H36M(nn.Module):
     def forward_instance(self, pred_joints, gt_joints):
         loss_dict = {}
 
-        conf = gt_joints[:,self.halpe2lsp,-1]
+        conf = gt_joints[:,:,-1]
 
-        pred_joints = pred_joints[:,self.halpe2lsp]
-        gt_joints = gt_joints[:,self.halpe2lsp,:3]
+        h36m_joints = torch.matmul(self.h36m_regressor, pred_joints)
+        halpe_joints = torch.matmul(self.halpe_regressor, pred_joints)
 
-        pred_joints = self.align_by_pelvis(pred_joints, format='lsp')
-        gt_joints = self.align_by_pelvis(gt_joints, format='lsp')
+        pred_joints = halpe_joints[:,self.halpe2h36m]
+        pred_joints[:,[7,8,9,10]] = h36m_joints[:,[7,8,9,10]]
+        gt_joints = gt_joints[:,:,:3]
+
+        pred_joints = self.align_by_pelvis(pred_joints, format='h36m')
+        gt_joints = self.align_by_pelvis(gt_joints, format='h36m')
 
         diff = torch.sqrt(torch.sum((pred_joints - gt_joints)**2, dim=[2]) * conf)
         diff = torch.mean(diff, dim=[1])
         diff = diff * 1000
         
-        return diff.detach().cpu().numpy()
+        return diff
 
     def forward(self, pred_joints, gt_joints):
         loss_dict = {}

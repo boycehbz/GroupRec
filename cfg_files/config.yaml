@@ -1,0 +1,44 @@
+# experiment name
+note: train
+
+#project basic
+task: relation  # hmr relation joint
+
+#model basic
+gpu_index: 0
+lr: 0.0001
+batchsize: 32
+epoch: 2000
+worker: 10
+use_sch: True
+
+#********dataset*********#
+# The path for datasets and annotations
+data_folder: data
+
+# Human36M_MOSH MPII_CLIFF COCO CrowdPose Panda JTA AGORA JTA_fitting
+trainset: Human36M_MOSH
+# 3DMPB MuPoTS Panoptic JTA AGORA GigaCrowd_train Internet_imgs
+testset: Human36M_MOSH
+
+# cliff hmr cliff_hmr pose_transformer_v8  relation relation_v8
+model: relation_head
+use_prior: False
+
+mode: train # train/test/eval
+
+
+# Use pretrain model and the corresponding path
+pretrain: False
+pretrain_dir: output/relation_head_panoptic/04.27-22h36m06s/trained model/best_relation_epoch020_108.223907.pkl
+
+#\\105.1.1.104\d\BuzhenHuang_Programs\CrowdPeople\Regression\output\pose_transformer_v8_mix\01.03-14h21m23s\trained model\hmr_epoch310.pkl
+
+# The name of your training loss function
+# Split different names with a single space
+# e.g., KL_Loss MPJPE L1 L2
+train_loss: SMPL_Loss Keyp_Loss Mesh_Loss Joint_Loss Plane_Loss  # SMPL_Loss Keyp_Loss Mesh_Loss Joint_Loss Joint_reg_Loss Skeleton_Loss Plane_Loss
+test_loss: PA_MPJPE #MPJPE #MPJPE PCK PA_MPJPE MPJPE_H36M
+
+#visualize
+viz: False

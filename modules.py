@@ -6,9 +6,12 @@
  @Description : 
 '''
 import os
+import sys
 import torch
 import time
 import yaml
+import colorsys
+import platform
 from datasets.demo_data import DemoData
 from datasets.demo_data_smpl import DemoData_SMPL
 from utils.imutils import vis_img
@@ -26,6 +29,7 @@ from utils.gui_3d import Gui_3d
 from utils.FileLoaders import save_pkl
 from utils.visualize_pose import show_poses
 from utils.pose import Pose
+from datasets.relation_feature_data import Relation_Feature_Data
 
 def init(note='occlusion', dtype=torch.float32, mode='eval', **kwargs):
     # Create the folder for the current experiment
@@ -59,6 +63,7 @@ def init(note='occlusion', dtype=torch.float32, mode='eval', **kwargs):
     return out_dir, logger, model_smpl
 
 
+
 class LossLoader():
     def __init__(self, train_loss='L1', test_loss='L1', device=torch.device('cpu'), **kwargs):
         self.train_loss_type = train_loss.split(' ')
@@ -72,6 +77,8 @@ class LossLoader():
                 self.train_loss.update(L1=L1(self.device))
             if loss == 'L2':
                 self.train_loss.update(L2=L2(self.device))
+            if loss == 'Keyp2d_L1':
+                self.train_loss.update(Keyp2d_L1=Keyp2d_L1(self.device))
             if loss == 'SMPL_Loss':
                 self.train_loss.update(SMPL_Loss=SMPL_Loss(self.device))
             if loss == 'Keyp_Loss':
@@ -82,8 +89,12 @@ class LossLoader():
                 self.train_loss.update(Joint_Loss=Joint_Loss(self.device))
             if loss == 'Skeleton_Loss':
                 self.train_loss.update(Skeleton_Loss=Skeleton_Loss(self.device))
+            if loss == 'Joint_abs_Loss':
+                self.train_loss.update(Joint_abs_Loss=Joint_abs_Loss(self.device))
             if loss == 'Shape_reg':
                 self.train_loss.update(Shape_reg=Shape_reg(self.device))
+            if loss == 'Pose_reg':
+                self.train_loss.update(Pose_reg=Pose_reg(self.device))
             if loss == 'Joint_reg_Loss':
                 self.train_loss.update(Joint_reg_Loss=Joint_reg_Loss(self.device))
             if loss == 'Plane_Loss':
@@ -91,6 +102,8 @@ class LossLoader():
             # You can define your loss function in loss_func.py, e.g., Smooth6D, 
             # and load the loss by adding the following lines
 
+            # if loss == 'Smooth6D':
+            #     self.train_loss.update(Smooth6D=Smooth6D(self.device))
 
         self.test_loss = {}
         for loss in self.test_loss_type:
@@ -100,6 +113,10 @@ class LossLoader():
                 self.test_loss.update(MPJPE=MPJPE(self.device))
             if loss == 'MPJPE_H36M':
                 self.test_loss.update(MPJPE_H36M=MPJPE_H36M(self.device))
+            if loss == 'MPJPE_H36M_instance':
+                self.test_loss.update(MPJPE_H36M_instance=MPJPE_H36M(self.device))
+            if loss == 'MPJPE_2D':
+                self.test_loss.update(MPJPE_2D=MPJPE_2D(self.device))
             if loss == 'PA_MPJPE':
                 self.test_loss.update(PA_MPJPE=MPJPE(self.device))
             if loss == 'MPJPE_instance':
@@ -119,6 +136,8 @@ class LossLoader():
                 loss_dict.update(L1=self.train_loss['L1'](pred, gt))
             elif ltype == 'L2':
                 loss_dict.update(L2=self.train_loss['L2'](pred, gt))
+            elif ltype == 'Keyp2d_L1':
+                loss_dict.update(Keyp2d_L1=self.train_loss['Keyp2d_L1'](pred['pred_keypoints_2d'], gt['keypoints']))
             elif ltype == 'SMPL_Loss':
                 SMPL_loss = self.train_loss['SMPL_Loss'](pred['pred_rotmat'], gt['pose'], pred['pred_shape'], gt['betas'], gt['has_smpl'])
                 loss_dict = {**loss_dict, **SMPL_loss}
@@ -175,6 +194,10 @@ class LossLoader():
                 loss_dict.update(MPJPE=self.test_loss['MPJPE'](pred['pred_joints'], gt['gt_joints']))
             elif ltype == 'MPJPE_H36M':
                 loss_dict.update(MPJPE_H36M=self.test_loss['MPJPE_H36M'](pred['pred_verts'], gt['gt_joints']))
+            elif ltype == 'MPJPE_H36M_instance':
+                loss_dict.update(MPJPE_H36M_instance=self.test_loss['MPJPE_H36M_instance'].forward_instance(pred['pred_verts'], gt['gt_joints']))
+            elif ltype == 'MPJPE_2D':
+                loss_dict.update(MPJPE_2D=self.test_loss['MPJPE_2D'](pred['viz_output'], pred['viz_keyp']))
             elif ltype == 'PA_MPJPE':
                 loss_dict.update(PA_MPJPE=self.test_loss['PA_MPJPE'].pa_mpjpe(pred['pred_joints'], gt['gt_joints']))
             elif ltype == 'PCK':
@@ -184,8 +207,13 @@ class LossLoader():
                 pass
         loss = 0
         for k in loss_dict:
+            if 'instance' in k:
+                assert len(loss_dict) == 1
+                loss = loss_dict[k]
+                loss_dict[k] = round(float(loss_dict[k].mean().detach().cpu().numpy()), 3)
+                break
             loss += loss_dict[k]
-            loss_dict[k] = round(float(loss_dict[k].detach().cpu().numpy()), 6)
+            loss_dict[k] = round(float(loss_dict[k].detach().cpu().numpy()), 3)
         return loss, loss_dict
 
     def calcul_instanceloss(self, pred, gt):
@@ -202,6 +230,7 @@ class LossLoader():
                 pass
 
         return loss_dict
+
 
 def get_model_info(model, tsize):
 
@@ -420,6 +449,80 @@ class ModelLoader():
             # vis_img('pred_smpl', pred_smpl)
             # vis_img('gt_smpl', gt_smpl)
 
+    def save_test_results(self, results, iter, batchsize):
+        output = os.path.join(self.output, 'images')
+        if not os.path.exists(output):
+            os.makedirs(output)
+
+        results['pred_verts'] = results['pred_verts'] + results['pred_trans'][:,np.newaxis,:]
+        results['gt_verts'] = results['gt_verts'] + results['gt_trans'][:,np.newaxis,:]
+
+        b, n = results['valid'].shape
+        
+        valid = results['valid'].reshape(-1,)
+
+        pred_verts = np.zeros((b * n, 6890, 3), dtype=np.float32)
+        gt_verts   = np.zeros((b * n, 6890, 3), dtype=np.float32)
+        focal      = np.zeros((b * n,), dtype=np.float32)
+
+        pred_verts[valid == 1] = results['pred_verts']
+        gt_verts[valid == 1] = results['gt_verts']
+        focal[valid == 1] = results['focal_length']
+
+        pred_verts = pred_verts.reshape(b, n, 6890, 3)
+        gt_verts = gt_verts.reshape(b, n, 6890, 3)
+        focal = focal.reshape(b, n)
+
+        if 'MPJPE' in results.keys():
+            MPJPE = np.zeros((b * n,), dtype=np.float32)
+            MPJPE[valid == 1] = results['MPJPE']
+            MPJPE = MPJPE.reshape(b, n)
+
+        valid = valid.reshape(b, n)
+
+        for index, (img, pred_vert, gt_vert, f, v) in enumerate(zip(results['imgs'][0], pred_verts, gt_verts, focal, valid)):
+            # print(img)
+            if platform.system() == 'Windows':
+                name = img.replace(self.data_folder + '\\', '').replace('\\', '_').replace('/', '_')
+            else:
+                name = img.replace(self.data_folder + '/', '').replace('\\', '_').replace('/', '_')
+            
+            img = cv2.imread(img)
+            img_h, img_w = img.shape[:2]
+            renderer = Renderer(focal_length=f[0], center=(img_w/2, img_h/2), img_w=img.shape[1], img_h=img.shape[0], faces=self.model_smpl_gpu.faces, same_mesh_color=False)
+
+            pred_vert = pred_vert[v==1]
+            gt_vert = gt_vert[v==1]
+
+            pred_smpl = renderer.render_front_view(pred_vert, bg_img_rgb=img.copy())
+
+            side_smpl = renderer.render_side_view(pred_vert)
+
+            gt_smpl = renderer.render_front_view(gt_vert, bg_img_rgb=img.copy())
+
+            gt_side_smpl = renderer.render_side_view(gt_vert)
+
+            background = np.zeros_like(img)
+
+            pred_smpl = np.concatenate((pred_smpl, side_smpl), axis=1)
+            background = np.concatenate((gt_smpl, gt_side_smpl), axis=1)
+            pred_smpl = np.concatenate((pred_smpl, background), axis=0)
+
+            render_name = "%s_%02d_pred_smpl.jpg" % (name, iter * batchsize + index)
+            cv2.imwrite(os.path.join(output, render_name), pred_smpl)
+
+            # render_name = "%s_%02d_gt_smpl.jpg" % (name, iter * batchsize + index)
+            # cv2.imwrite(os.path.join(output, render_name), gt_smpl)
+
+            # mesh_name = os.path.join(output, 'meshes/%s_%02d_pred_mesh.obj' %(name, iter * batchsize + index))
+            # self.model_smpl_gpu.write_obj(pred_verts, mesh_name)
+
+            # mesh_name = os.path.join(output, 'meshes/%s_%02d_gt_mesh.obj' %(name, iter * batchsize + index))
+            # self.model_smpl_gpu.write_obj(gt_verts, mesh_name)
+            renderer.delete()
+            # vis_img('pred_smpl', pred_smpl)
+            # vis_img('gt_smpl', gt_smpl)
+
     def save_joint_results(self, results, iter, batchsize):
         output = os.path.join(self.output, 'images')
         if not os.path.exists(output):
@@ -564,7 +667,7 @@ class ModelLoader():
         render_name = "%s" %name
         cv2.imwrite(os.path.join(output, render_name), pred_smpl)
 
-        vis_img('pred_smpl', pred_smpl)
+        # vis_img('pred_smpl', pred_smpl)
 
         for i, verts in enumerate(pred_verts):
             mesh_name = os.path.join(output, 'meshes/%s/%05d.obj' %(name.split('.')[0], i))
@@ -583,6 +686,25 @@ class DatasetLoader():
         self.smpl = smpl
         self.task = task
         self.model = model
+
+
+    def load_trainset(self):
+        train_dataset = []
+        for i in range(len(self.trainset)):
+            if self.task == 'relation':
+                train_dataset.append(Relation_Feature_Data(True, self.dtype, self.data_folder, self.trainset[i], self.smpl))
+
+        train_dataset = torch.utils.data.ConcatDataset(train_dataset)
+        return train_dataset
+
+    def load_testset(self):
+        test_dataset = []
+        for i in range(len(self.testset)):
+            if self.task == 'relation':
+                test_dataset.append(Relation_Feature_Data(False, self.dtype, self.data_folder, self.testset[i], self.smpl))
+
+        test_dataset = torch.utils.data.ConcatDataset(test_dataset)
+        return test_dataset
 
     def load_demo_data(self):
         if self.model in ['relation']:
